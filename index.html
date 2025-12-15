@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DoV Manager v3.12 (Smart Keys)</title>
+    <title>DoV Manager v3.13 (Sell Strategy)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -48,31 +48,7 @@
         const INITIAL_MARKET_PRICES = { WAX: 1, DOVX: 0.05, DOVR: 0.00045, DOVH: 0.00045, DOVF: 0.00045, DOVS: 0.00045 };
         const Card = ({ children, className = "" }) => <div className={`bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-xl ${className}`}>{children}</div>;
 
-        // --- NEW DATASET: KEYS HIERARCHY ---
-        const ALL_KEYS = [
-           { id: 'k_beach_f1', name: 'F1-KEY-BEACH', order: 4 },
-           { id: 'k_beach_f2', name: 'F2-KEY-BEACH', order: 5 },
-           { id: 'k_beach_f3', name: 'F3-KEY-BEACH', order: 6 },
-           { id: 'k_beach_f4', name: 'F4-KEY-BEACH', order: 7 },
-           { id: 'k_forest_f1', name: 'F1-KEY-FOREST', order: 8 },
-           { id: 'k_city_f1', name: 'F1-KEY-CITY', order: 9 }, // TARGET FOR CITY 1
-           { id: 'k_forest_f2', name: 'F2-KEY-FOREST', order: 9 },
-           { id: 'k_forest_f3', name: 'F3-KEY-FOREST', order: 10 },
-           { id: 'k_forest_f4', name: 'F4-KEY-FOREST', order: 11 },
-           { id: 'k_hill_f1', name: 'F1-KEY-HILL', order: 12 },
-           { id: 'k_city_f2', name: 'F2-KEY-CITY', order: 13 },
-           { id: 'k_hill_f2', name: 'F2-KEY-HILL', order: 13 },
-           { id: 'k_hill_f3', name: 'F3-KEY-HILL', order: 14 },
-           { id: 'k_hill_f4', name: 'F4-KEY-HILL', order: 15 },
-           { id: 'k_plaine_f1', name: 'F1-KEY-PLAINE', order: 16 },
-           { id: 'k_city_f3', name: 'F3-KEY-CITY', order: 17 },
-           { id: 'k_plaine_f2', name: 'F2-KEY-PLAINE', order: 17 },
-           { id: 'k_plaine_f3', name: 'F3-KEY-PLAINE', order: 18 },
-           { id: 'k_plaine_f4', name: 'F4-KEY-PLAINE', order: 19 },
-           { id: 'k_city_f4', name: 'F4-KEY-CITY', order: 20 },
-        ];
-
-        // --- BLEND SIMULATOR (SMART KEYS) ---
+        // --- BLEND SIMULATOR (V3.13 SELL STRATEGY) ---
         const BlendSimulator = ({ marketPrices, waxPriceUsd }) => {
             const [targetType, setTargetType] = useState('ALL_4'); 
             const [inventory, setInventory] = useState({ 
@@ -81,17 +57,23 @@
             });
             const [simStats, setSimStats] = useState({ runs: 0, completed: false });
             
-            // PRICES CONFIG
+            // CONFIG
             const [keyPrices, setKeyPrices] = useState({ CITY: 50, BEACH: 5, FOREST: 10 });
-            const [buildingPrice, setBuildingPrice] = useState(10);
+            
+            // SELL STRATEGY CONFIG
+            const [sellMode, setSellMode] = useState('UNIT'); // 'UNIT' (F1) or 'BATCH' (F4)
+            const [f1Price, setF1Price] = useState(5);
+            const [f4Price, setF4Price] = useState(250); // Higher value item
+            
             const [numAccounts, setNumAccounts] = useState(1);
             
             const COST_PER_RUN_DOVX = 1664; 
             const COST_PER_RUN_WAX = COST_PER_RUN_DOVX * marketPrices.DOVX;
             const BLEND_REQ = 120;
+            const F4_REQ = 27; // 27 F1s to make 1 F4
             const RUNS_PER_DAY_PER_ACCOUNT = 3;
 
-            // ACCESS LOGIC (Requires F1-KEY-CITY order 9)
+            // ACCESS LOGIC
             const REQ_ORDER_CITY1 = 9;
             const droppedKeyMaxOrder = inventory.KEY_CITY > 0 ? 9 : (inventory.KEY_FOREST > 0 ? 8 : (inventory.KEY_BEACH > 0 ? 4 : 0));
             const hasCityAccess = droppedKeyMaxOrder >= REQ_ORDER_CITY1;
@@ -130,16 +112,40 @@
             // --- REAL TIME CALCULATIONS ---
             const totalDailyRuns = numAccounts * RUNS_PER_DAY_PER_ACCOUNT;
             const daysNeeded = simStats.runs > 0 ? Math.ceil(simStats.runs / totalDailyRuns) : 0;
-            const keyRevenueWax = (inventory.KEY_CITY * keyPrices.CITY) + (inventory.KEY_BEACH * keyPrices.BEACH) + (inventory.KEY_FOREST * keyPrices.FOREST);
-            const totalCostWax = simStats.runs * COST_PER_RUN_WAX;
-            const netCostWax = totalCostWax - keyRevenueWax;
+            
+            // Revenue Calculation Logic
+            // We assume standard drop distribution (1 building per run) for daily projections
+            // 1 Run = 1 Building (F1).
+            // If Sell Mode is BATCH (F4), we need 27 runs to get 1 "Sellable Unit" of F4 (statistically, though types vary).
+            // To simplify daily projection: 
+            // Average Revenue per Building Slot = (SellMode == UNIT ? F1Price : (F4Price / 27))
+            
+            const buildingRevenuePerRun = sellMode === 'UNIT' ? f1Price : (f4Price / F4_REQ);
 
-            // ROI PROJECTION
             const averageKeyPrice = (keyPrices.CITY + keyPrices.BEACH + keyPrices.FOREST) / 3;
+            
             const dailyCostWax = totalDailyRuns * COST_PER_RUN_WAX;
-            const dailyRevenueWax = totalDailyRuns * (averageKeyPrice + buildingPrice);
+            const dailyRevenueWax = totalDailyRuns * (averageKeyPrice + buildingRevenuePerRun);
             const dailyProfitWax = dailyRevenueWax - dailyCostWax;
             
+            // Inventory Valuation for Total Stats
+            const keyRevenueTotal = (inventory.KEY_CITY * keyPrices.CITY) + (inventory.KEY_BEACH * keyPrices.BEACH) + (inventory.KEY_FOREST * keyPrices.FOREST);
+            
+            let buildingRevenueTotal = 0;
+            if (sellMode === 'UNIT') {
+                buildingRevenueTotal = (inventory.FUEL + inventory.REPAIR + inventory.SUPPLY + inventory.HEALTH) * f1Price;
+            } else {
+                // Batch logic: Calculate how many F4s we can make per type
+                const f4Fuel = Math.floor(inventory.FUEL / F4_REQ);
+                const f4Repair = Math.floor(inventory.REPAIR / F4_REQ);
+                const f4Supply = Math.floor(inventory.SUPPLY / F4_REQ);
+                const f4Health = Math.floor(inventory.HEALTH / F4_REQ);
+                buildingRevenueTotal = (f4Fuel + f4Repair + f4Supply + f4Health) * f4Price;
+            }
+
+            const totalCostWax = simStats.runs * COST_PER_RUN_WAX;
+            const netCostWax = totalCostWax - (keyRevenueTotal + buildingRevenueTotal); // Net "Cost" considering we sold everything
+
             const roiMetrics = [
                 { label: '24 Heures', multiplier: 1 },
                 { label: '30 Jours', multiplier: 30 },
@@ -162,33 +168,56 @@
                                                 <div className="text-xs text-emerald-400 font-bold">{formatUSD(COST_PER_RUN_WAX)}</div>
                                             </div>
                                         </div>
-                                        <div className="text-[10px] text-slate-500 text-right mt-1 border-t border-slate-700 pt-1">({COST_PER_RUN_DOVX} DOV-X @ {marketPrices.DOVX})</div>
                                     </div>
+                                    
+                                    {/* SELL STRATEGY TOGGLE */}
                                     <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
-                                        <label className="text-xs text-purple-300 font-bold uppercase mb-2 block flex items-center gap-1"><KeyIcon size={12}/> Valorisation Clés (Ordres)</label>
+                                        <label className="text-xs text-blue-300 font-bold uppercase mb-2 block">Stratégie de Vente Bâtiments</label>
+                                        <div className="flex bg-slate-800 p-1 rounded mb-3">
+                                            <button onClick={() => setSellMode('UNIT')} className={`flex-1 text-xs font-bold py-1 rounded transition-colors ${sellMode === 'UNIT' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>UNITAIRE (F1)</button>
+                                            <button onClick={() => setSellMode('BATCH')} className={`flex-1 text-xs font-bold py-1 rounded transition-colors ${sellMode === 'BATCH' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}>BLEND (F4)</button>
+                                        </div>
+                                        
+                                        {sellMode === 'UNIT' ? (
+                                            <div className="flex items-center gap-2 animate-fade-in">
+                                                <span className="text-xs text-slate-400 w-24">Prix F1 (Unit)</span>
+                                                <input type="number" value={f1Price} onChange={(e) => setF1Price(parseFloat(e.target.value))} className="flex-1 bg-slate-900 border border-slate-600 rounded p-1 text-sm text-center font-bold text-blue-400" />
+                                                <span className="text-xs text-slate-500">WAX</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 animate-fade-in">
+                                                <span className="text-xs text-purple-300 w-24">Prix F4 (Blend)</span>
+                                                <input type="number" value={f4Price} onChange={(e) => setF4Price(parseFloat(e.target.value))} className="flex-1 bg-slate-900 border border-purple-500 rounded p-1 text-sm text-center font-bold text-purple-400" />
+                                                <span className="text-xs text-slate-500">WAX</span>
+                                                <div className="text-[10px] text-slate-500 absolute right-8 mt-8">Ratio 1:27</div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* KEY PRICES CONFIG */}
+                                    <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
+                                        <label className="text-xs text-purple-300 font-bold uppercase mb-2 block flex items-center gap-1"><KeyIcon size={12}/> Valorisation Clés</label>
                                         <div className="space-y-2">
                                             <div className="flex justify-between items-center gap-2">
-                                                <span className="text-xs text-green-400 w-16 font-bold">CITY (O:9)</span>
+                                                <span className="text-xs text-green-400 w-16 font-bold">CITY</span>
                                                 <input type="number" value={keyPrices.CITY} onChange={(e) => setKeyPrices({...keyPrices, CITY: parseFloat(e.target.value)})} className="flex-1 bg-slate-800 border border-slate-600 rounded p-1 text-sm text-center font-bold text-white focus:border-green-500" />
                                             </div>
                                             <div className="flex justify-between items-center gap-2">
-                                                <span className="text-xs text-yellow-400 w-16">FOR (O:8)</span>
+                                                <span className="text-xs text-yellow-400 w-16">FOREST</span>
                                                 <input type="number" value={keyPrices.FOREST} onChange={(e) => setKeyPrices({...keyPrices, FOREST: parseFloat(e.target.value)})} className="flex-1 bg-slate-800 border border-slate-600 rounded p-1 text-sm text-center font-bold text-white focus:border-yellow-500" />
                                             </div>
                                             <div className="flex justify-between items-center gap-2">
-                                                <span className="text-xs text-slate-400 w-16">BEA (O:4)</span>
+                                                <span className="text-xs text-slate-400 w-16">BEACH</span>
                                                 <input type="number" value={keyPrices.BEACH} onChange={(e) => setKeyPrices({...keyPrices, BEACH: parseFloat(e.target.value)})} className="flex-1 bg-slate-800 border border-slate-600 rounded p-1 text-sm text-center font-bold text-white focus:border-blue-500" />
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-xs text-blue-300 font-bold uppercase w-1/2">Prix Vente Bât.</label>
-                                        <input type="number" value={buildingPrice} onChange={(e) => setBuildingPrice(parseFloat(e.target.value))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm text-center font-bold text-blue-400" />
-                                    </div>
+
                                     <div className="bg-slate-900/50 p-2 rounded border border-slate-700 flex items-center justify-between">
                                         <span className="text-xs text-slate-400">Nb Comptes</span>
                                         <input type="number" min="1" value={numAccounts} onChange={(e) => setNumAccounts(parseInt(e.target.value) || 1)} className="w-12 bg-slate-800 border border-slate-600 rounded p-1 text-center text-sm font-bold text-white" />
                                     </div>
+
                                     <div className="flex gap-2">
                                         <button onClick={runSimulation} className="flex-1 py-3 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded shadow-lg flex items-center justify-center gap-2 text-xs"><Zap size={16}/> SIMULER</button>
                                         <button onClick={resetSim} className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded text-xs">RESET</button>
@@ -197,7 +226,7 @@
                             </Card>
                             
                             <Card className="border-t-4 border-t-emerald-500">
-                                <h3 className="text-lg font-bold text-emerald-300 mb-4 flex items-center gap-2"><TrendingUp size={20} /> Projections</h3>
+                                <h3 className="text-lg font-bold text-emerald-300 mb-4 flex items-center gap-2"><TrendingUp size={20} /> Projections (Stratégie {sellMode})</h3>
                                 <div className="space-y-4">
                                     {roiMetrics.map((metric, idx) => {
                                         const profit = dailyProfitWax * metric.multiplier;
@@ -222,7 +251,7 @@
                         {/* RESULTS */}
                         <Card className="lg:col-span-2 flex flex-col">
                              <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Database size={20} className="text-blue-400"/> Progression & Accréditation</h3>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Database size={20} className="text-blue-400"/> Inventaire & Progression</h3>
                                 <div className="text-right">
                                     <div className="text-xs text-slate-400 uppercase">Runs</div>
                                     <div className="text-2xl font-mono font-bold text-white">{simStats.runs}</div>
@@ -234,9 +263,15 @@
                                     const count = inventory[type];
                                     const pct = Math.min((count / BLEND_REQ) * 100, 100);
                                     const isDone = count >= BLEND_REQ;
+                                    const f4Count = Math.floor(count / F4_REQ);
+                                    
                                     return (
                                         <div key={type} className={`bg-slate-900 p-3 rounded border ${isDone ? 'border-emerald-500' : 'border-slate-700'} relative overflow-hidden`}>
-                                            <div className="relative z-10"><div className="text-[10px] text-slate-500 uppercase font-bold mb-1">{type}</div><div className={`text-xl font-mono font-bold ${isDone ? 'text-emerald-400' : 'text-white'}`}>{count} <span className="text-xs text-slate-500">/ {BLEND_REQ}</span></div></div>
+                                            <div className="relative z-10">
+                                                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">{type}</div>
+                                                <div className={`text-xl font-mono font-bold ${isDone ? 'text-emerald-400' : 'text-white'}`}>{count} <span className="text-xs text-slate-500">/ {BLEND_REQ}</span></div>
+                                                {sellMode === 'BATCH' && <div className="text-xs text-purple-400 font-bold mt-1">Possible F4: {f4Count}</div>}
+                                            </div>
                                             <div className={`absolute bottom-0 left-0 h-1 bg-blue-600 progress-bar`} style={{width: `${pct}%`}}></div>
                                             {isDone && <div className="absolute top-1 right-1 text-emerald-500"><CheckCircle size={16}/></div>}
                                         </div>
@@ -244,20 +279,14 @@
                                 })}
                              </div>
 
-                             {/* ACCREDITATION STATUS */}
                              <div className="mb-6 p-4 bg-slate-900/80 rounded border border-slate-700 flex items-center justify-between">
                                  <div>
-                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Meilleure Clé Droppée</div>
-                                     <div className="flex items-center gap-2">
-                                         <KeyIcon size={18} className={hasCityAccess ? "text-green-400" : "text-yellow-400"}/>
-                                         <span className={`font-bold ${hasCityAccess ? "text-green-400" : "text-white"}`}>
-                                             {inventory.KEY_CITY > 0 ? "F1-KEY-CITY (Ordre 9)" : (inventory.KEY_FOREST > 0 ? "F1-KEY-FOREST (Ordre 8)" : (inventory.KEY_BEACH > 0 ? "F1-KEY-BEACH (Ordre 4)" : "Aucune"))}
-                                         </span>
-                                     </div>
+                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Accès City 1</div>
+                                     {hasCityAccess ? <span className="text-green-400 font-bold flex items-center gap-1"><CheckCircle size={14}/> OK</span> : <span className="text-red-400 font-bold flex items-center gap-1"><Lock size={14}/> NOK</span>}
                                  </div>
                                  <div className="text-right">
-                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Accès City 1 (Req 9+)</div>
-                                     {hasCityAccess ? <span className="bg-green-900 text-green-300 px-3 py-1 rounded text-xs font-bold border border-green-700">ACCÈS VALIDÉ</span> : <span className="bg-red-900 text-red-300 px-3 py-1 rounded text-xs font-bold border border-red-700"><Lock size={12} className="inline mr-1"/> VERROUILLÉ</span>}
+                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Temps Estimé</div>
+                                     <div className="text-white font-bold">{daysNeeded} Jours</div>
                                  </div>
                              </div>
                              
@@ -268,11 +297,9 @@
                                      <div className="text-sm font-bold text-red-300/70 font-mono mt-1">{formatUSD(totalCostWax)}</div>
                                  </div>
                                  <div className="bg-slate-900/50 p-4 rounded border border-slate-700">
-                                     <div className="text-xs text-purple-300 uppercase mb-1">Revente Clés (Détail)</div>
-                                     <div className="text-xl font-mono font-bold text-purple-400">+{keyRevenueWax.toLocaleString(undefined, {maximumFractionDigits:0})} WAX</div>
-                                     <div className="text-xs text-slate-500 mt-1 flex justify-between px-2 font-mono">
-                                         <span>City:{inventory.KEY_CITY}</span><span>For:{inventory.KEY_FOREST}</span><span>Bea:{inventory.KEY_BEACH}</span>
-                                     </div>
+                                     <div className="text-xs text-purple-300 uppercase mb-1">Revenus Vente ({sellMode})</div>
+                                     <div className="text-xl font-mono font-bold text-purple-400">+{keyRevenueTotal + buildingRevenueTotal} WAX</div>
+                                     <div className="text-xs text-slate-500 mt-1">Clés: {keyRevenueTotal} | Bât: {buildingRevenueTotal}</div>
                                  </div>
                                  <div className={`p-4 rounded border-2 ${netCostWax > 0 ? 'bg-slate-800 border-slate-600' : 'bg-emerald-900/20 border-emerald-500'}`}>
                                      <div className="text-xs text-white font-bold uppercase mb-1">COÛT FINAL NET</div>
@@ -303,7 +330,7 @@
             return (
                 <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
                     <header className="flex flex-col xl:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4 gap-4">
-                        <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-lg"><Shield size={32} className="text-white" /></div><div><h1 className="text-2xl font-bold tracking-wider text-white">DoV <span className="text-blue-400">COMMANDER</span> v3.12</h1><p className="text-slate-400 text-sm">Optimiseur Industriel (Smart Keys)</p></div></div>
+                        <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-lg"><Shield size={32} className="text-white" /></div><div><h1 className="text-2xl font-bold tracking-wider text-white">DoV <span className="text-blue-400">COMMANDER</span> v3.13</h1><p className="text-slate-400 text-sm">Optimiseur Industriel (Sell Strategy)</p></div></div>
                         <div className="flex flex-wrap gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm justify-center items-end">
                             <div className="flex flex-col"><span className="text-xs text-green-400 font-bold mb-1">Prix WAX ($)</span><input type="number" value={waxPriceUsd} step="0.001" onChange={(e) => handleGlobalWaxPriceChange(e.target.value)} className="bg-slate-700 text-white w-20 px-2 py-1 rounded border border-slate-600"/></div>
                             <div className="flex flex-col"><span className="text-xs text-slate-400 mb-1">DOV-X (WAX)</span><input type="text" value={dovxInputStr} onChange={(e) => handleManualDovxChange(e.target.value)} className="bg-slate-700 text-yellow-400 w-24 px-2 py-1 rounded border border-slate-600"/></div>
