@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DoV Manager v3.19 (Bunker 27x Ratio)</title>
+    <title>DoV Manager v3.20 (Bunker Cycle)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -45,11 +45,12 @@
         const KeyIcon = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 2-2 2m-7.6 7.6a6.5 6.5 0 1 1-5.3 5.3L3 21l3-3 2.1-2.1a2 2 0 0 1 2.8 0L13.4 13.4a2 2 0 0 1 0 2.8l-4.3 4.3"/><path d="m10 10 1.5 1.5"/><path d="m14 6 1.5 1.5"/><path d="m18 2 1.5 1.5"/></svg>;
         const Lock = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
         const Compass = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>;
+        const RefreshCw = ({size=20}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>;
 
         const INITIAL_MARKET_PRICES = { WAX: 1, DOVX: 0.05, DOVR: 0.00045262, DOVH: 0.00045262, DOVF: 0.00045262, DOVS: 0.00045262 };
         const Card = ({ children, className = "" }) => <div className={`bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-xl ${className}`}>{children}</div>;
 
-        // --- BLEND SIMULATOR (V3.19 PACK RATIO LOGIC) ---
+        // --- BLEND SIMULATOR (V3.20 CASHFLOW CYCLE) ---
         const BlendSimulator = ({ marketPrices, waxPriceUsd }) => {
             const [activeZone, setActiveZone] = useState('CITY_1'); 
             const [targetType, setTargetType] = useState('ALL_4'); 
@@ -59,8 +60,9 @@
                 F4_FUEL: 0, F4_REPAIR: 0, F4_SUPPLY: 0, F4_HEALTH: 0,
                 KEY_CITY: 0, KEY_BEACH: 0, KEY_FOREST: 0 
             });
-            const [simStats, setSimStats] = useState({ runs: 0, completed: false }); // 'runs' here means PACKS OPENED
+            const [simStats, setSimStats] = useState({ runs: 0, completed: false });
             
+            // CONFIG PRICES
             const [keyPrices, setKeyPrices] = useState({ CITY: 50, BEACH: 5, FOREST: 10 });
             const [sellMode, setSellMode] = useState('UNIT'); 
             const [f1Price, setF1Price] = useState(5);
@@ -68,11 +70,10 @@
             const [numAccounts, setNumAccounts] = useState(1);
             const [tuPrice, setTuPrice] = useState(0.00045262); 
 
-            // FIXED ZONE DATA
-            // packRatio: Number of runs needed to get 1 Pack (1 Building + 1 Key)
+            // ZONE DATA
             const ZONE_DATA = {
                 CITY_1: { cost: 1664, currency: 'DOVX', winReward: 0, packRatio: 1 },
-                BUNKER: { cost: 44480, currency: 'TU', winReward: 3838, packRatio: 27 }, // 27 Wins = 1 Pack
+                BUNKER: { cost: 44480, currency: 'TU', winReward: 3838, packRatio: 27 }, 
                 CAMP: { cost: 112880, currency: 'TU', winReward: 9739, packRatio: 1 }
             };
 
@@ -80,7 +81,6 @@
             const packRatio = currentZoneData.packRatio;
 
             // COST CALCULATION
-            // Cost per 1 Run
             let unitRunCostWax = 0;
             if (currentZoneData.currency === 'TU') {
                 unitRunCostWax = currentZoneData.cost * tuPrice;
@@ -88,18 +88,12 @@
                 unitRunCostWax = currentZoneData.cost * marketPrices.DOVX;
             }
             
-            // Cost per 1 Pack (The Blend Goal)
-            const COST_PER_PACK_WAX = unitRunCostWax * packRatio;
-            
-            // Reward per 1 Pack (The accumulation of runs)
-            const WIN_REWARD_PER_PACK_WAX = (currentZoneData.winReward * marketPrices.DOVX) * packRatio;
+            // REWARD CALCULATION PER RUN
+            const unitWinRewardWax = currentZoneData.winReward * marketPrices.DOVX;
 
             const BLEND_REQ = 120;
             const F4_REQ = 27; 
             const RUNS_PER_DAY_PER_ACCOUNT = 3;
-
-            const droppedKeyMaxOrder = inventory.KEY_CITY > 0 ? 9 : (inventory.KEY_FOREST > 0 ? 8 : (inventory.KEY_BEACH > 0 ? 4 : 0));
-            const hasCityAccess = droppedKeyMaxOrder >= 9;
 
             const resetSim = () => {
                 setInventory({ FUEL: 0, REPAIR: 0, SUPPLY: 0, HEALTH: 0, F4_FUEL: 0, F4_REPAIR: 0, F4_SUPPLY: 0, F4_HEALTH: 0, KEY_CITY: 0, KEY_BEACH: 0, KEY_FOREST: 0 });
@@ -121,21 +115,11 @@
                 const MAX_PACKS = 10000; 
                 while (!isComplete && packsOpened < MAX_PACKS) {
                     packsOpened++;
-                    
-                    // DROP LOGIC (Per Pack Opened)
                     const randBuild = Math.random(); 
                     if (activeZone === 'CITY_1') {
                         if (randBuild < 0.25) currentInv.FUEL++; else if (randBuild < 0.50) currentInv.REPAIR++; else if (randBuild < 0.75) currentInv.SUPPLY++; else currentInv.HEALTH++;
                     } else {
-                        // Bunker & Camp have Jackpots
-                        if (randBuild < 0.2498) currentInv.FUEL++;
-                        else if (randBuild < 0.2500) currentInv.F4_FUEL++; 
-                        else if (randBuild < 0.4998) currentInv.REPAIR++;
-                        else if (randBuild < 0.5000) currentInv.F4_REPAIR++; 
-                        else if (randBuild < 0.7498) currentInv.SUPPLY++;
-                        else if (randBuild < 0.7500) currentInv.F4_SUPPLY++; 
-                        else if (randBuild < 0.9998) currentInv.HEALTH++;
-                        else currentInv.F4_HEALTH++; 
+                        if (randBuild < 0.2498) currentInv.FUEL++; else if (randBuild < 0.2500) currentInv.F4_FUEL++; else if (randBuild < 0.4998) currentInv.REPAIR++; else if (randBuild < 0.5000) currentInv.F4_REPAIR++; else if (randBuild < 0.7498) currentInv.SUPPLY++; else if (randBuild < 0.7500) currentInv.F4_SUPPLY++; else if (randBuild < 0.9998) currentInv.HEALTH++; else currentInv.F4_HEALTH++; 
                     }
                     const randKey = Math.random();
                     if (randKey < 0.3333) currentInv.KEY_CITY++; else if (randKey < 0.6666) currentInv.KEY_BEACH++; else currentInv.KEY_FOREST++;
@@ -149,33 +133,26 @@
             const formatUSD = (waxAmount) => `$${(waxAmount * waxPriceUsd).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             // --- REAL TIME CALCULATIONS ---
-            
-            // Time logic: Runs per day / Pack Ratio = Packs per day
             const totalDailyRuns = numAccounts * RUNS_PER_DAY_PER_ACCOUNT;
             const packsPerDay = totalDailyRuns / packRatio;
             const daysNeeded = simStats.runs > 0 ? Math.ceil(simStats.runs / packsPerDay) : 0;
-            const monthsNeeded = (daysNeeded / 30).toFixed(1);
             
-            // Revenue Calculation Logic (Per Pack)
+            // Revenue Calculation Logic
             const probF4 = activeZone === 'CITY_1' ? 0 : 0.0008; 
             const probF1 = activeZone === 'CITY_1' ? 1 : 0.9992;
             const avgBuildRev = (probF1 * f1Price) + (probF4 * f4Price);
             const averageKeyPrice = (keyPrices.CITY + keyPrices.BEACH + keyPrices.FOREST) / 3;
             
-            // Daily Projections (Adjusted for Pack Ratio)
-            // Daily Cost = Runs * Cost per Run
+            // Daily Projections
             const dailyCostWax = totalDailyRuns * unitRunCostWax;
-            
-            // Daily Revenue = (Runs * Win Reward) + (Packs Opened * Drop Value)
-            const dailyWinRewardWax = totalDailyRuns * (currentZoneData.winReward * marketPrices.DOVX);
+            const dailyWinRewardWax = totalDailyRuns * unitWinRewardWax;
             const dailyDropRevenueWax = packsPerDay * (averageKeyPrice + avgBuildRev);
-            
             const dailyRevenueWaxTotal = dailyWinRewardWax + dailyDropRevenueWax;
             const dailyProfitWax = dailyRevenueWaxTotal - dailyCostWax;
             
-            // Total Stats (Accumulated)
-            const totalCostWax = simStats.runs * COST_PER_PACK_WAX; // simStats.runs is PACKS
-            const totalWinRewardWax = simStats.runs * WIN_REWARD_PER_PACK_WAX; 
+            // Total Stats
+            const totalCostWax = (simStats.runs * packRatio) * unitRunCostWax;
+            const totalWinRewardWax = (simStats.runs * packRatio) * unitWinRewardWax;
             
             const keyRevenueTotal = (inventory.KEY_CITY * keyPrices.CITY) + (inventory.KEY_BEACH * keyPrices.BEACH) + (inventory.KEY_FOREST * keyPrices.FOREST);
             
@@ -191,6 +168,14 @@
             }
 
             const netCostWax = totalCostWax - (keyRevenueTotal + buildingRevenueTotal + totalWinRewardWax); 
+
+            // CYCLE ANALYSIS (For 1 Pack Cycle)
+            const cycleCostTU = currentZoneData.cost * packRatio;
+            const cycleCostWax = unitRunCostWax * packRatio;
+            const cycleRewardDOVX = currentZoneData.winReward * packRatio;
+            const cycleRewardWax = unitWinRewardWax * packRatio;
+            const cycleNetWax = cycleRewardWax - cycleCostWax;
+            const cycleFundedPct = cycleCostWax > 0 ? (cycleRewardWax / cycleCostWax) * 100 : 0;
 
             const roiMetrics = [
                 { label: '24 Heures', multiplier: 1 },
@@ -208,54 +193,47 @@
                             <Card className="border-t-4 border-t-pink-500">
                                 <h3 className="text-lg font-bold text-pink-300 mb-4 flex items-center gap-2"><FlaskConical size={20} /> Paramètres Blend</h3>
                                 <div className="space-y-4">
-                                    
-                                    {/* ZONE SELECTOR */}
                                     <div className="bg-slate-900 p-1 rounded border border-slate-700 flex mb-2">
                                         <button onClick={() => { setActiveZone('CITY_1'); resetSim(); }} className={`flex-1 py-2 text-xs font-bold rounded flex items-center justify-center gap-2 ${activeZone === 'CITY_1' ? 'bg-pink-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><Shield size={14}/> CITY 1</button>
                                         <button onClick={() => { setActiveZone('BUNKER'); resetSim(); }} className={`flex-1 py-2 text-xs font-bold rounded flex items-center justify-center gap-2 ${activeZone === 'BUNKER' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><Compass size={14}/> BUNKER</button>
                                         <button onClick={() => { setActiveZone('CAMP'); resetSim(); }} className={`flex-1 py-2 text-xs font-bold rounded flex items-center justify-center gap-2 ${activeZone === 'CAMP' ? 'bg-green-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🌲 CAMP</button>
                                     </div>
 
-                                    {/* COST DISPLAY */}
+                                    {/* CYCLE ANALYSIS FOR BUNKER */}
+                                    {activeZone === 'BUNKER' && (
+                                        <div className="bg-gradient-to-r from-blue-900/50 to-slate-900 p-3 rounded border border-blue-500/50">
+                                            <div className="flex items-center gap-2 mb-2 text-blue-300 font-bold text-xs uppercase"><RefreshCw size={14}/> Cycle Économique (27 Runs)</div>
+                                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                                                <div>
+                                                    <div className="text-[10px] text-slate-400">Dépenses TU (Total)</div>
+                                                    <div className="font-mono text-red-300">-{cycleCostTU.toLocaleString()} TU</div>
+                                                    <div className="font-bold text-red-400">{cycleCostWax.toFixed(0)} W</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-[10px] text-slate-400">Gains DOV-X (Total)</div>
+                                                    <div className="font-mono text-emerald-300">+{cycleRewardDOVX.toLocaleString()} DOV-X</div>
+                                                    <div className="font-bold text-emerald-400">+{cycleRewardWax.toFixed(0)} W</div>
+                                                </div>
+                                            </div>
+                                            <div className="border-t border-blue-800/50 pt-1 flex justify-between items-center">
+                                                <span className="text-xs text-slate-300">Bilan Cycle :</span>
+                                                <span className={`text-sm font-bold ${cycleNetWax >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                                                    {cycleNetWax >= 0 ? 'AUTO-FINANCÉ ✅' : `APPORT REQUIS: ${Math.abs(cycleNetWax).toFixed(0)} W`}
+                                                </span>
+                                            </div>
+                                            <div className="text-[10px] text-right text-slate-500 mt-1">Couverture: {cycleFundedPct.toFixed(1)}%</div>
+                                        </div>
+                                    )}
+
                                     <div className="bg-slate-900 p-3 rounded border border-slate-700">
                                         <div className="flex justify-between items-center mb-1">
                                             <span className="text-slate-400 text-xs font-bold uppercase">Coût UNITAIRE Run</span>
-                                            <span className={`text-[10px] px-1 rounded ${currentZoneData.currency === 'TU' ? 'bg-blue-900 text-blue-300' : 'bg-yellow-900 text-yellow-300'}`}>{currentZoneData.currency}</span>
+                                            {currentZoneData.currency === 'TU' ? <span className="text-[10px] bg-blue-900 text-blue-300 px-1 rounded">EN TU</span> : <span className="text-[10px] bg-yellow-900 text-yellow-300 px-1 rounded">EN DOV-X</span>}
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <div className={`text-lg font-mono font-bold ${currentZoneData.currency === 'TU' ? 'text-blue-400' : 'text-yellow-400'}`}>
-                                                {currentZoneData.cost.toLocaleString()}
-                                            </div>
+                                            <div className={`text-lg font-mono font-bold ${currentZoneData.currency === 'TU' ? 'text-blue-400' : 'text-yellow-400'}`}>{currentZoneData.cost.toLocaleString()}</div>
                                             {currentZoneData.currency === 'TU' && (<div className="text-[10px] text-slate-500 ml-2">Prix TU: <input type="number" value={tuPrice} onChange={(e) => setTuPrice(parseFloat(e.target.value))} className="w-20 bg-slate-800 border-b border-slate-600 text-white text-center" /> W</div>)}
                                         </div>
-                                        <div className="flex justify-between items-center text-xs border-t border-slate-700 pt-2 mt-2">
-                                            <span className="text-slate-500">Unit WAX</span>
-                                            <div className="text-right font-mono text-white">{unitRunCostWax.toFixed(2)} W</div>
-                                        </div>
-                                        
-                                        {/* PACK RATIO DISPLAY */}
-                                        <div className="mt-3 pt-2 border-t border-slate-600 border-dashed bg-slate-800/50 p-2 rounded">
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="text-purple-300 font-bold">COÛT 1 PACK (Drops)</span>
-                                                <span className="text-purple-300 font-bold">x{packRatio} Runs</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xl font-bold text-white">{COST_PER_PACK_WAX.toFixed(0)} WAX</span>
-                                                <span className="text-xs text-emerald-400">{formatUSD(COST_PER_PACK_WAX)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* WIN REWARD DISPLAY */}
-                                    <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
-                                        <label className="text-xs text-green-400 font-bold uppercase mb-1 block">Total Rewards / Pack</label>
-                                        <div className="flex justify-between items-center">
-                                            <div className="font-mono font-bold text-green-400 text-sm">
-                                                +{(currentZoneData.winReward * packRatio).toLocaleString()} DOV-X
-                                            </div>
-                                            <div className="text-[10px] text-slate-500 ml-2">= +{WIN_REWARD_PER_PACK_WAX.toFixed(0)} WAX</div>
-                                        </div>
-                                        {packRatio > 1 && <div className="text-[10px] text-slate-500 text-right mt-1 italic">(Cumul de {packRatio} victoires)</div>}
                                     </div>
                                     
                                     <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
@@ -363,7 +341,7 @@
                                      {hasCityAccess ? <span className="text-green-400 font-bold flex items-center gap-1"><CheckCircle size={14}/> OK</span> : <span className="text-red-400 font-bold flex items-center gap-1"><Lock size={14}/> NOK</span>}
                                  </div>
                                  <div className="text-right">
-                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Temps Estimé ({packRatio}x plus lent)</div>
+                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Temps Estimé</div>
                                      <div className="text-white font-bold">{daysNeeded} Jours</div>
                                  </div>
                              </div>
@@ -409,7 +387,7 @@
             return (
                 <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
                     <header className="flex flex-col xl:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4 gap-4">
-                        <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-lg"><Shield size={32} className="text-white" /></div><div><h1 className="text-2xl font-bold tracking-wider text-white">DoV <span className="text-blue-400">COMMANDER</span> v3.19</h1><p className="text-slate-400 text-sm">Optimiseur Industriel (Bunker 27x Ratio)</p></div></div>
+                        <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-lg"><Shield size={32} className="text-white" /></div><div><h1 className="text-2xl font-bold tracking-wider text-white">DoV <span className="text-blue-400">COMMANDER</span> v3.20</h1><p className="text-slate-400 text-sm">Optimiseur Industriel (Cycle Cashflow)</p></div></div>
                         <div className="flex flex-wrap gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm justify-center items-end">
                             <div className="flex flex-col"><span className="text-xs text-green-400 font-bold mb-1">Prix WAX ($)</span><input type="number" value={waxPriceUsd} step="0.001" onChange={(e) => handleGlobalWaxPriceChange(e.target.value)} className="bg-slate-700 text-white w-20 px-2 py-1 rounded border border-slate-600"/></div>
                             <div className="flex flex-col"><span className="text-xs text-slate-400 mb-1">DOV-X (WAX)</span><input type="text" value={dovxInputStr} onChange={(e) => handleManualDovxChange(e.target.value)} className="bg-slate-700 text-yellow-400 w-24 px-2 py-1 rounded border border-slate-600"/></div>
