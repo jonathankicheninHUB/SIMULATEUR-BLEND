@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DoV Manager v3.5 (Blend Simulator)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer; margin-top: -6px; 
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px;
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .progress-bar { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- ICONS ---
+        const Shield = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+        const FactoryIcon = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>;
+        const Crosshair = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>;
+        const AlertTriangle = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+        const CheckCircle = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+        const Lock = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+        const Users = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const ChevronRight = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="9 18 15 12 9 6"/></svg>;
+        const DollarSign = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+        const Filter = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+        const Package = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m16.5 9.4-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+        const Trash2 = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+        const Plus = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+        const Calculator = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
+        const KeyIcon = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21 2-2 2m-7.6 7.6a6.5 6.5 0 1 1-5.3 5.3L3 21l3-3 2.1-2.1a2 2 0 0 1 2.8 0L13.4 13.4a2 2 0 0 1 0 2.8l-4.3 4.3"/><path d="m10 10 1.5 1.5"/><path d="m14 6 1.5 1.5"/><path d="m18 2 1.5 1.5"/></svg>;
+        const Zap = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+        const Heart = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 14c1.49-1.28 3.6-2.34 4.53-3.26a6.5 6.5 0 0 0-5.71-10.42 6.51 6.51 0 0 0-5.71 3.8A6.5 6.5 0 0 0 5.71 .32 6.51 6.51 0 0 0 0 5.22c.94.91 3.05 1.98 4.53 3.26L12 22l7-8z"/></svg>;
+        const ArrowLeft = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
+        const Briefcase = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+        const Database = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>;
+        const Gift = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.9 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>;
+        const Diamond = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>;
+        const Scale = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>;
+        const Info = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+        const LinkIcon = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07L13 7"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07L11 17"/></svg>;
+        const BookIcon = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>;
+        const MessageSquare = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+        const Mail = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
+        const Shuffle = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="9" x2="19" y2="13"/><line x1="4" y1="4" x2="8" y2="8"/></svg>;
+        const TrendingUp = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
+        const FlaskConical = ({size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><line x1="8.5" x2="15.5" y1="2" y2="2"/><path d="M8.5 2h7"/><path d="M9 22h6"/></svg>;
+
+        // --- DATASETS ---
+
+        const INITIAL_MARKET_PRICES = {
+            WAX: 1, 
+            DOVX: 0.05, // Adjusted to 0.05 per user hypothesis
+            DOVR: 0.00045262,
+            DOVH: 0.00045262,
+            DOVF: 0.00045262,
+            DOVS: 0.00045262,
+        };
+
+        const FACTORIES = [
+             // Simplifié pour l'affichage, les datas complètes sont dans le composant
+             { id: 'c_f1_fuel', name: 'Common FUEL 1', type: 'FUEL', rarity: 'Common', level: 1, output: 5.40, costDoVX: 0.4590 },
+             { id: 'c_f1_repair', name: 'Common REPAIR 1', type: 'REPAIR', rarity: 'Common', level: 1, output: 5.40, costDoVX: 0.4590 },
+             { id: 'c_f1_supply', name: 'Common SUPPLY 1', type: 'SUPPLY', rarity: 'Common', level: 1, output: 5.40, costDoVX: 0.4590 },
+             { id: 'c_f1_health', name: 'Common HEALTH 1', type: 'HEALTH', rarity: 'Common', level: 1, output: 5.40, costDoVX: 0.4590 },
+             { id: 'l_f5_fuel', name: 'Supreme FUEL 5', type: 'FUEL', rarity: 'Supreme', level: 5, output: 1458.00, costDoVX: 123.93 },
+             // ... autres types pour simulation
+        ];
+        
+        // Liste complète des usines générées pour la partie Production
+        const generateFactories = () => {
+            const types = ['FUEL', 'REPAIR', 'SUPPLY', 'HEALTH'];
+            const rarities = [
+                { name: 'Common', levels: [ { l: 1, out: 5.40, cost: 0.4590 }, { l: 2, out: 12.15, cost: 1.0328 }, { l: 3, out: 30.38, cost: 2.5819 }, { l: 4, out: 83.53, cost: 7.1002 }, { l: 5, out: 1458.00, cost: 123.9300, isBlend: true } ]},
+                { name: 'Rare', levels: [ { l: 1, out: 16.20, cost: 1.3770 }, { l: 2, out: 36.45, cost: 3.0983 }, { l: 3, out: 91.13, cost: 7.7456 }, { l: 4, out: 250.59, cost: 21.3005 } ]},
+                { name: 'Epic', levels: [ { l: 1, out: 48.60, cost: 4.1310 }, { l: 2, out: 109.35, cost: 9.2948 }, { l: 3, out: 273.38, cost: 23.2369 }, { l: 4, out: 751.78, cost: 63.9014 } ]},
+                { name: 'Legendary', levels: [ { l: 1, out: 145.80, cost: 12.3930 }, { l: 2, out: 328.05, cost: 27.8843 }, { l: 3, out: 820.13, cost: 69.7106 }, { l: 4, out: 2255.34, cost: 191.7042 } ]},
+                { name: 'Supreme', levels: [ { l: 1, out: 2255.34, cost: 191.7042 } ]}
+            ];
+            let list = [];
+            types.forEach(type => {
+                rarities.forEach(rarity => {
+                rarity.levels.forEach(level => {
+                    if (level.l === 5 && rarity.name !== 'Common' && (type === 'SUPPLY' || type === 'HEALTH')) return; 
+
+                    let name = `${rarity.name} ${type} ${level.l}`;
+                    if (level.isBlend) {
+                        name = `Supreme ${rarity.name} ${type} (Blend 120x F1)`;
+                    }
+
+                    list.push({
+                        id: `${rarity.name.charAt(0)}_${type.charAt(0)}${level.l}`,
+                        name: name,
+                        type: type,
+                        rarity: rarity.name,
+                        level: level.l,
+                        output: level.out,
+                        costDoVX: level.cost,
+                        efficiency: 100, 
+                        accountsNeeded: 1,
+                        equivalentF1s: 1
+                    });
+                });
+                });
+            });
+            return list;
+        };
+        const ALL_FACTORIES = generateFactories();
+
+
+        const ZONES = [
+            { id: 1, name: 'Beach 1', type: 'Beach', win: 400, usage: 1160 },
+            { id: 17, name: 'City 1', type: 'City', win: 0, usage: 0, entryCostDovX: 777.35, minWeight: 108.53, keyReq: 9, officerReq: 1, bonusToken: "F1-TOKEN-CITY-2025" }
+        ];
+        
+        const CHEST_DATA = {
+            'Bunker': {
+                zone: 4,
+                name: 'PACK Bunker',
+                tokenCost: 27, 
+                drops: [
+                    { type: 'building', pool: [
+                        { id: 'c_f1_fuel', name: 'C_F1_PRODUCER_FUEL', prob: 24.98 },
+                        { id: 'c_f1_repair', name: 'C_F1_PRODUCER_REPAIR', prob: 24.98 },
+                        { id: 'c_f1_supply', name: 'C_F1_PRODUCER_SUPPLY', prob: 24.98 },
+                        { id: 'c_f1_health', name: 'C_F1_PRODUCER_HEALTH', prob: 24.98 }
+                    ]},
+                    { type: 'key', pool: [
+                        { id: 'F1-KEY-CITY', name: 'F1-KEY-CITY', prob: 33.33 },
+                        { id: 'F1-KEY-BEACH', name: 'F1-KEY-BEACH', prob: 33.33 },
+                        { id: 'F1-KEY-FOREST', name: 'F1-KEY-FOREST', prob: 33.33 }
+                    ]}
+                ]
+            }
+        };
+
+        // --- COMPONENTS ---
+
+        const Card = ({ children, className = "" }) => <div className={`bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-xl ${className}`}>{children}</div>;
+        const Badge = ({ children, color = "blue" }) => {
+             const colors = { blue: "bg-blue-900 text-blue-200 border-blue-700", green: "bg-emerald-900 text-emerald-200 border-emerald-700", red: "bg-red-900 text-red-200 border-red-700", yellow: "bg-yellow-900 text-yellow-200 border-yellow-700", purple: "bg-purple-900 text-purple-200 border-purple-700" };
+             return <span className={`px-2 py-1 rounded text-xs font-bold border ${colors[color] || colors.blue}`}>{children}</span>;
+        };
+
+        // --- NOUVEAU COMPOSANT : BLEND SIMULATOR ---
+        const BlendSimulator = ({ marketPrices, waxPriceUsd }) => {
+            const [targetType, setTargetType] = useState('ALL_4'); // 'FUEL', 'REPAIR', 'SUPPLY', 'HEALTH', 'ALL_4', 'FIRST_ONE'
+            const [simSpeed, setSimSpeed] = useState('instant');
+            const [inventory, setInventory] = useState({ FUEL: 0, REPAIR: 0, SUPPLY: 0, HEALTH: 0, KEYS: 0 });
+            const [stats, setStats] = useState({ runs: 0, totalCostWax: 0, keyRevenueWax: 0, netCostWax: 0, completed: false });
+            const [keyPrice, setKeyPrice] = useState(15);
+            
+            const COST_PER_RUN_DOVX = 777.35; // City 1 entry
+            const COST_PER_RUN_WAX = COST_PER_RUN_DOVX * marketPrices.DOVX;
+            const BLEND_REQ = 120;
+
+            const resetSim = () => {
+                setInventory({ FUEL: 0, REPAIR: 0, SUPPLY: 0, HEALTH: 0, KEYS: 0 });
+                setStats({ runs: 0, totalCostWax: 0, keyRevenueWax: 0, netCostWax: 0, completed: false });
+            };
+
+            const runSimulation = () => {
+                let currentInv = { ...inventory };
+                let runs = stats.runs;
+                let isComplete = false;
+
+                const checkCompletion = (inv) => {
+                    if (targetType === 'ALL_4') return inv.FUEL >= BLEND_REQ && inv.REPAIR >= BLEND_REQ && inv.SUPPLY >= BLEND_REQ && inv.HEALTH >= BLEND_REQ;
+                    if (targetType === 'FIRST_ONE') return inv.FUEL >= BLEND_REQ || inv.REPAIR >= BLEND_REQ || inv.SUPPLY >= BLEND_REQ || inv.HEALTH >= BLEND_REQ;
+                    return inv[targetType] >= BLEND_REQ;
+                };
+
+                // Limit safety to avoid browser crash
+                const MAX_RUNS = 10000; 
+                
+                while (!isComplete && runs < MAX_RUNS) {
+                    runs++;
+                    // Drop logic (based on equal probability 24.98% approx 25%)
+                    const rand = Math.random();
+                    if (rand < 0.25) currentInv.FUEL++;
+                    else if (rand < 0.50) currentInv.REPAIR++;
+                    else if (rand < 0.75) currentInv.SUPPLY++;
+                    else currentInv.HEALTH++;
+                    
+                    // Guaranteed Key Drop
+                    currentInv.KEYS++;
+
+                    if (checkCompletion(currentInv)) isComplete = true;
+                }
+
+                const totalCost = runs * COST_PER_RUN_WAX;
+                const keyRev = currentInv.KEYS * keyPrice;
+                
+                setInventory(currentInv);
+                setStats({
+                    runs,
+                    totalCostWax: totalCost,
+                    keyRevenueWax: keyRev,
+                    netCostWax: totalCost - keyRev,
+                    completed: isComplete
+                });
+            };
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* CONFIG PANEL */}
+                        <Card className="border-t-4 border-t-pink-500">
+                            <h3 className="text-lg font-bold text-pink-300 mb-4 flex items-center gap-2">
+                                <FlaskConical size={20} /> Paramètres Blend
+                            </h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Objectif Industriel</label>
+                                    <select value={targetType} onChange={(e) => { setTargetType(e.target.value); resetSim(); }} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm focus:border-pink-500 outline-none">
+                                        <option value="ALL_4">4 Supremes (1 de chaque type)</option>
+                                        <option value="FIRST_ONE">1 Supreme (La première complète)</option>
+                                        <option value="FUEL">1 Supreme FUEL spécifique</option>
+                                        <option value="REPAIR">1 Supreme REPAIR spécifique</option>
+                                    </select>
+                                </div>
+                                <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-slate-400">Coût Run City 1</span>
+                                        <span className="font-mono text-white">{COST_PER_RUN_WAX.toFixed(2)} W</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 text-right">({COST_PER_RUN_DOVX} DOV-X @ {marketPrices.DOVX})</div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Prix Vente Clé (Est.)</label>
+                                    <div className="flex items-center gap-2">
+                                        <input type="number" value={keyPrice} onChange={(e) => setKeyPrice(parseFloat(e.target.value))} className="w-20 bg-slate-900 border border-slate-600 rounded p-2 text-sm text-center font-bold text-purple-400" />
+                                        <span className="text-xs text-slate-500">WAX / unité</span>
+                                    </div>
+                                </div>
+                                <button onClick={runSimulation} className="w-full py-3 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded shadow-lg flex items-center justify-center gap-2">
+                                    <Zap size={18}/> LANCER SIMULATION
+                                </button>
+                                <button onClick={resetSim} className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded text-xs">
+                                    RÉINITIALISER
+                                </button>
+                            </div>
+                        </Card>
+
+                        {/* RESULTS PANEL */}
+                        <Card className="lg:col-span-2">
+                             <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Database size={20} className="text-blue-400"/> Inventaire & Progression
+                                </h3>
+                                <div className="text-right">
+                                    <div className="text-xs text-slate-400 uppercase">Runs Totaux</div>
+                                    <div className="text-2xl font-mono font-bold text-white">{stats.runs}</div>
+                                </div>
+                             </div>
+
+                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                {['FUEL', 'REPAIR', 'SUPPLY', 'HEALTH'].map(type => {
+                                    const count = inventory[type];
+                                    const pct = Math.min((count / BLEND_REQ) * 100, 100);
+                                    const isDone = count >= BLEND_REQ;
+                                    
+                                    return (
+                                        <div key={type} className={`bg-slate-900 p-3 rounded border ${isDone ? 'border-emerald-500' : 'border-slate-700'} relative overflow-hidden`}>
+                                            <div className="relative z-10">
+                                                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">{type}</div>
+                                                <div className={`text-xl font-mono font-bold ${isDone ? 'text-emerald-400' : 'text-white'}`}>{count} <span className="text-xs text-slate-500">/ {BLEND_REQ}</span></div>
+                                            </div>
+                                            <div className={`absolute bottom-0 left-0 h-1 bg-blue-600 progress-bar`} style={{width: `${pct}%`}}></div>
+                                            {isDone && <div className="absolute top-1 right-1 text-emerald-500"><CheckCircle size={16}/></div>}
+                                        </div>
+                                    );
+                                })}
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-700 pt-6">
+                                 <div className="bg-slate-900/50 p-4 rounded border border-slate-700">
+                                     <div className="text-xs text-slate-400 uppercase mb-1">Investissement Total</div>
+                                     <div className="text-xl font-mono font-bold text-red-400">{stats.totalCostWax.toLocaleString(undefined, {maximumFractionDigits:0})} WAX</div>
+                                     <div className="text-xs text-slate-500 mt-1">Avance de trésorerie requise</div>
+                                 </div>
+                                 
+                                 <div className="bg-slate-900/50 p-4 rounded border border-slate-700">
+                                     <div className="text-xs text-purple-300 uppercase mb-1">Revente Clés ({inventory.KEYS})</div>
+                                     <div className="text-xl font-mono font-bold text-purple-400">+{stats.keyRevenueWax.toLocaleString(undefined, {maximumFractionDigits:0})} WAX</div>
+                                     <div className="text-xs text-slate-500 mt-1">Subventionne le craft</div>
+                                 </div>
+
+                                 <div className={`p-4 rounded border-2 ${stats.netCostWax > 0 ? 'bg-slate-800 border-slate-600' : 'bg-emerald-900/20 border-emerald-500'}`}>
+                                     <div className="text-xs text-white font-bold uppercase mb-1">COÛT FINAL NET</div>
+                                     <div className={`text-2xl font-mono font-bold ${stats.netCostWax < 0 ? 'text-emerald-400' : 'text-white'}`}>
+                                         {stats.netCostWax.toLocaleString(undefined, {maximumFractionDigits:0})} WAX
+                                     </div>
+                                     {targetType === 'ALL_4' && stats.runs > 0 && (
+                                         <div className="text-xs text-emerald-400 mt-1 font-bold">
+                                             Soit ~{(stats.netCostWax / 4).toFixed(0)} WAX / Supreme F5
+                                         </div>
+                                     )}
+                                 </div>
+                             </div>
+                             
+                             <div className="mt-4 p-3 bg-blue-900/20 text-blue-200 text-xs rounded border border-blue-800/50">
+                                 <strong>💡 Analyse Stratégique :</strong> 
+                                 {targetType === 'ALL_4' 
+                                    ? " Viser les 4 Supremes simultanément est la stratégie la plus efficiente. Le 'gaspillage' est minimisé car toutes les cartes servent." 
+                                    : " Viser un seul type spécifique est très coûteux en capital car vous accumulez des stocks dormants des 3 autres types."}
+                             </div>
+                        </Card>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // --- MAIN APP ---
+
+        function DoVManager() {
+            const [activeTab, setActiveTab] = useState('account_sim');
+            const [marketPrices, setMarketPrices] = useState(INITIAL_MARKET_PRICES);
+            const [waxPriceUsd, setWaxPriceUsd] = useState(0.008); 
+            
+            // ... (Autres states existants conservés pour compatibilité si on copie-colle tout le fichier)
+            const [dovxInputStr, setDovxInputStr] = useState(INITIAL_MARKET_PRICES.DOVX.toString());
+
+            const handleGlobalWaxPriceChange = (val) => {
+                const newWaxPrice = parseFloat(val);
+                setWaxPriceUsd(newWaxPrice);
+            };
+            
+            const handleManualDovxChange = (val) => {
+                setDovxInputStr(val); 
+                const newDovx = parseFloat(val);
+                if (!isNaN(newDovx)) {
+                    setMarketPrices(prev => ({ ...prev, DOVX: newDovx }));
+                }
+            };
+
+            return (
+                <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
+                    <header className="flex flex-col xl:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4 gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-lg"><Shield size={32} className="text-white" /></div>
+                            <div>
+                                <h1 className="text-2xl font-bold tracking-wider text-white">DoV <span className="text-blue-400">COMMANDER</span> v3.5</h1>
+                                <p className="text-slate-400 text-sm">Optimiseur Industriel & Stratégique</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm justify-center items-end">
+                            <div className="flex flex-col"><span className="text-xs text-green-400 font-bold mb-1">Prix WAX ($)</span><div className="relative"><span className="absolute left-2 top-1.5 text-slate-500">$</span><input type="number" value={waxPriceUsd} step="0.001" onChange={(e) => handleGlobalWaxPriceChange(e.target.value)} className="bg-slate-700 text-white w-20 pl-5 pr-2 py-1 rounded border border-slate-600 focus:outline-none focus:border-blue-500"/></div></div>
+                            <div className="w-px bg-slate-600 h-8 mx-2 hidden md:block self-center"></div>
+                            <div className="flex flex-col"><span className="text-xs text-slate-400 mb-1">DOV-X (WAX)</span><input type="number" step="0.0001" value={dovxInputStr} onChange={(e) => handleManualDovxChange(e.target.value)} className="bg-slate-700 text-yellow-400 w-24 px-2 py-1 rounded border border-slate-600 focus:outline-none focus:border-blue-500"/></div>
+                        </div>
+                    </header>
+                    
+                    {/* NAVIGATION TABS */}
+                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 no-scrollbar">
+                        <button onClick={() => setActiveTab('account_sim')} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all whitespace-nowrap text-sm ${activeTab === 'account_sim' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><Briefcase size={16} /> COMPTE</button>
+                        <button onClick={() => setActiveTab('blend')} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all whitespace-nowrap text-sm ${activeTab === 'blend' ? 'bg-pink-600 text-white shadow-lg shadow-pink-900/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><FlaskConical size={16} /> SIMULATEUR BLEND</button>
+                        <button onClick={() => setActiveTab('combat')} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all whitespace-nowrap text-sm ${activeTab === 'combat' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><Crosshair size={16} /> COMBAT</button>
+                        <button onClick={() => setActiveTab('production')} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all whitespace-nowrap text-sm ${activeTab === 'production' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><FactoryIcon size={16} /> PRODUCTION</button>
+                        <button onClick={() => setActiveTab('packs')} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all whitespace-nowrap text-sm ${activeTab === 'packs' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><Package size={16} /> PACKS</button>
+                    </div>
+
+                    {/* CONTENT RENDERING */}
+                    
+                    {activeTab === 'blend' && <BlendSimulator marketPrices={marketPrices} waxPriceUsd={waxPriceUsd} />}
+
+                    {activeTab === 'account_sim' && (
+                        <div className="text-center p-10 bg-slate-800 rounded border border-slate-700">
+                             <h2 className="text-xl text-slate-400 mb-2">Simulateur de Compte Complet</h2>
+                             <p className="text-sm text-slate-500">Utilisez l'onglet <strong>Simulateur Blend</strong> pour calculer le coût des Supremes.</p>
+                        </div>
+                    )}
+                    
+                    {/* Placeholder for other tabs to keep code short for display, 
+                        in real usage integrate the full previous logic here */}
+                    {(activeTab !== 'blend' && activeTab !== 'account_sim') && (
+                        <div className="text-center p-10 bg-slate-800 rounded border border-slate-700 opacity-50">
+                            <h2 className="text-xl text-slate-400">Module {activeTab.toUpperCase()}</h2>
+                            <p className="text-sm text-slate-500">Voir versions précédentes pour le code complet de ce module.</p>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<DoVManager />);
+    </script>
+</body>
+</html>
